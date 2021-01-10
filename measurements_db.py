@@ -2,6 +2,7 @@ import os
 import sqlite3
 
 DB = 'measurements.db'
+TABLE = 'measurements'
 
 class Measurements_db(object):
 
@@ -13,9 +14,9 @@ class Measurements_db(object):
         'temperature': 'float',
         'pressure': 'float',
         'humidity': 'float',
-        'gas_resistances': 'float',
+        'gas_resistances': 'int',
         'lux': 'int',
-        'proximity': 'int',
+        'proximity': 'float',
     }
 
     def __init__(self):
@@ -29,10 +30,10 @@ class Measurements_db(object):
     def create_table(self):
         conn = sqlite3.connect(DB)
         cur = conn.cursor()
-        if not os.path.isfile(DB):
-            vals = [f'{key} {self.fields[key]}' for key in self.fields.keys()]
-            sql = f'CREATE TABLE measurements ({", ".join(vals)})'
-            cur.execute(sql)
+
+        vals = [f'{key} {self.fields[key]}' for key in self.fields.keys()]
+        sql = f'CREATE TABLE IF NOT EXISTS {TABLE} ({", ".join(vals)})'
+        cur.execute(sql)
 
         self.conn = conn
         self.cur = cur
@@ -46,11 +47,12 @@ class Measurements_db(object):
         values = ', :'.join(self.fields.keys())
         sql = (f"""
             INSERT INTO
-                {DB}
+                {TABLE}
                 ({fields})
             VALUES
-                (:{values})""", records)
-        self.cur.executemany(sql)
+                (:{values})""")
+        self.cur.executemany(sql, records)
+        self.conn.commit()
 
 if __name__ == 'main':
     db = Measurements_db()

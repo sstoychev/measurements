@@ -33,14 +33,13 @@ env_sensor.set_filter(bme680.FILTER_SIZE_3)
 env_sensor.set_gas_status(bme680.ENABLE_GAS_MEAS)
 
 env_sensor.set_gas_heater_temperature(320)
-env_sensor.set_gas_heater_duration(150)
+env_sensor.set_gas_heater_duration(1000)
 env_sensor.select_gas_heater_profile(0)
+env_sensor.set_temp_offset(-5)
 
 TEMP_FACTOR = 0.95
 
 #### end of bme680
-
-MESSAGE = "192.158.5.149"
 
 # Create ST7789 LCD display class.
 disp = ST7789.ST7789(
@@ -51,65 +50,75 @@ disp = ST7789.ST7789(
     spi_speed_hz=80 * 1000 * 1000
 )
 
-output = subprocess.run(['hostname', '-I'], capture_output=True, text=True).stdout
-ip = output.split(" ")[0]
-
-output = subprocess.run(['vcgencmd', 'measure_temp'], capture_output=True, text=True).stdout
-cpu_temp = float(output[output.index('=') + 1:output.rindex("'")])
-
-temperature = ''
-pressure  = ''
-humidity = ''
-gas_resistance =  ''
-
-for _ in range(5):
-    if env_sensor.get_sensor_data():
-        temperature = env_sensor.data.temperature
-        pressure  = env_sensor.data.pressure
-        humidity = env_sensor.data.humidity
-
-        if env_sensor.data.heat_stable:
-            gas_resistance = env_sensor.data.gas_resistance
-            break
-    time.sleep(1)
-# print(gas_resistance)
-
-env_temp = ((cpu_temp - temperature) / TEMP_FACTOR)
-
-
-######## light sensor
-light_sensor.update_sensor()
-lux = light_sensor.get_lux()
-prox = light_sensor.get_proximity()
-
 # Initialize display.
 disp.begin()
 
 WIDTH = disp.width
 HEIGHT = disp.height
 
-
-img = Image.new('RGB', (WIDTH, HEIGHT), color=(0, 0, 0))
-
-draw = ImageDraw.Draw(img)
-
 font22 = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 22)
 font30 = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 30)
 
-size_x, size_y = draw.textsize(MESSAGE, font30)
+while True:
+    output = subprocess.run(['hostname', '-I'], capture_output=True, text=True).stdout
+    ip = output.split(" ")[0]
 
-draw.rectangle((0, 0, disp.width, disp.height), (0, 0, 0))
+    output = subprocess.run(['vcgencmd', 'measure_temp'], capture_output=True, text=True).stdout
+    cpu_temp = float(output[output.index('=') + 1:output.rindex("'")])
 
-text_x = disp.width
-text_y = ((80 - size_y) // 2) +4
+    temperature = ''
+    pressure  = ''
+    humidity = ''
+    gas_resistance =  ''
 
-draw.text((0, 0), ip, font=font30, fill=(255, 255, 255))
-draw.text((0, text_y*1), f'{env_temp:.1f}C {pressure:3.0f}hPa', font=font30, fill=(255, 255, 255))
-draw.text((0, text_y*2), f'{humidity:2.0f}%', font=font30, fill=(255, 255, 255))
-draw.text((0, text_y*3), time.strftime('%x %X'), font=font22, fill=(255, 255, 255))
-draw.text((0, text_y*4), f'Lux: {lux:06.2f}', font=font30, fill=(255, 255, 255))
-draw.text((0, text_y*5), f'Prox: {prox:04d}', font=font30, fill=(255, 255, 255))
-draw.text((0, text_y*6), f'{gas_resistance:6.0f}', font=font30, fill=(255, 255, 255))
+    ######## env_sensor bme680
+    for _ in range(5):
+        if env_sensor.get_sensor_data():
+            temperature = env_sensor.data.temperature
+            pressure  = env_sensor.data.pressure
+            humidity = env_sensor.data.humidity
 
-print(f'{env_temp:.1f}C {cpu_temp} {temperature} {pressure:3.0f}hPa {humidity:2.0f}% Lux: {lux:06.2f} {gas_resistance:6.0f}')
-disp.display(img)
+            if env_sensor.data.heat_stable:
+                gas_resistance = env_sensor.data.gas_resistance
+                break
+        time.sleep(1)
+    # print(gas_resistance)
+
+    env_temp = ((cpu_temp - temperature) / TEMP_FACTOR)
+
+    ######## light sensor ltr559
+    light_sensor.update_sensor()
+    lux = light_sensor.get_lux()
+    prox = light_sensor.get_proximity()
+
+    img = Image.new('RGB', (WIDTH, HEIGHT), color=(0, 0, 0))
+
+    draw = ImageDraw.Draw(img)
+    draw.rectangle((0, 0, disp.width, disp.height), (0, 0, 0))
+
+    size_x, size_y = draw.textsize(ip, font30)
+
+    text_x = disp.width  # draw whole line
+    text_y = size_y + 2
+
+    draw.text((0, 0), ip, font=font30, fill=(255, 255, 255))
+    draw.text((0, text_y*1), f'{env_temp:.1f}C {pressure:3.0f}hPa', font=font30, fill=(255, 255, 255))
+    draw.text((0, text_y*2), f'{humidity:2.0f}%', font=font30, fill=(255, 255, 255))
+    draw.text((0, text_y*3), time.strftime('%x %X'), font=font22, fill=(255, 255, 255))
+    draw.text((0, text_y*4), f'Lux: {lux:06.2f}', font=font30, fill=(255, 255, 255))
+    draw.text((0, text_y*5), f'Prox: {prox:04d}', font=font30, fill=(255, 255, 255))
+    draw.text((0, text_y*6), f'{gas_resistance:6.0f}', font=font30, fill=(255, 255, 255))
+
+    print(f'{temperature:.1f}C {cpu_temp} {env_temp:.1f} {pressure:3.0f}hPa {humidity:2.0f}% Lux: {lux:06.2f} Prox: {prox} {gas_resistance:6.0f}')
+    disp.display(img)
+    record = {
+        'datetime_int': int(time.time()),
+        'temperature': temperature,
+        'pressure': pressure,
+        'humidity': humidity,
+        'gas_resistances': int(gas_resistance),
+        'lux': int(lux),
+        'proximity': prox,
+    }
+    db.insert_records(records=[record])
+    time.sleep(30)
