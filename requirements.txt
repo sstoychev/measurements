@@ -1,0 +1,12 @@
+bme680==1.0.5
+i2cdevice==0.0.7
+ltr559==0.1.1
+numpy==1.19.5
+pa1010d==0.0.2
+Pillow==8.1.0
+pkg-resources==0.0.0
+pynmea2==1.15.0
+RPi.GPIO==0.7.0
+smbus==1.1.post2
+spidev==3.5
+ST7789==0.0.2
